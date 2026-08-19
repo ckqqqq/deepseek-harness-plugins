@@ -4,3 +4,6 @@
 [submodule "dsh-routing-suite"]
 	path = dsh-routing-suite
 	url = https://github.com/yjh051108/dsh-routing-suite.git
+[submodule "dsh-webbridge"]
+	path = dsh-webbridge
+	url = https://github.com/bill9109/dsh-webbridge.git
