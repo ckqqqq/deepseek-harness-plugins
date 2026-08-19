@@ -1,3 +1,6 @@
 [submodule "dsh-anchored-flash"]
 	path = dsh-anchored-flash
 	url = https://github.com/ruler770525/dsh-anchored-flash.git
+[submodule "dsh-routing-suite"]
+	path = dsh-routing-suite
+	url = https://github.com/yjh051108/dsh-routing-suite.git
