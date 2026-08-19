@@ -1,0 +1,3 @@
+[submodule "dsh-anchored-flash"]
+	path = dsh-anchored-flash
+	url = https://github.com/ruler770525/dsh-anchored-flash.git
