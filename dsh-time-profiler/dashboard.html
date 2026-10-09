@@ -12,7 +12,7 @@
 @media(prefers-color-scheme:dark){:root{--bg:#151517;--panel:#1d1d20;--text:#ececef;--muted:#9999a1;--line:#303035;--blue:#7aaaff;--track:#29292e}}
 .card,section{border-radius:10px}h1{font-size:26px}.eyebrow{letter-spacing:1px}a{color:var(--blue)}
 #session-sidebar{position:fixed;inset:0 auto 0 0;width:270px;overflow:auto;background:var(--panel);border-right:1px solid var(--line);padding:20px 14px;box-sizing:border-box}
-#session-sidebar h2{margin:18px 0 8px;font-size:13px;color:var(--muted)}#workspace-filter{width:100%;font-size:13px}#session-sidebar summary{cursor:pointer;overflow-wrap:anywhere;padding:10px 4px;font-size:13px}
+#session-sidebar h2{margin:18px 0 8px;font-size:13px;color:var(--muted)}#workspace-filter,#session-search{width:100%;font-size:13px}#session-search{box-sizing:border-box;padding:8px;margin-bottom:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}#session-sidebar summary{cursor:pointer;overflow-wrap:anywhere;padding:10px 4px;font-size:13px}
 .session-button{display:block;width:100%;border:0;background:none;text-align:left;padding:9px 12px;font-size:13px;overflow-wrap:anywhere;margin:2px 0}.session-button.active{background:var(--track);color:var(--blue)}.session-button small{display:block;color:var(--muted);font-size:11px}
 body.workspace-layout main{margin-left:270px;max-width:1440px}#session-context{overflow-wrap:anywhere;font-size:13px}.workspace-brand{font-size:20px;font-weight:600}
 @media(max-width:900px){#session-sidebar{position:static;width:auto;border-right:0;border-bottom:1px solid var(--line)}#session-list{max-height:240px;overflow:auto}body.workspace-layout main{margin:auto}}
@@ -20,7 +20,7 @@ body.workspace-layout main{margin-left:270px;max-width:1440px}#session-context{o
 :root[data-theme=light]{color-scheme:light;--bg:#fff;--panel:#fafafa;--text:#222225;--muted:#77777e;--line:#e6e6e9;--blue:#4176e6;--track:#eeeef1}
 </style>
 </head>
-<body><aside id="session-sidebar" hidden><div class="workspace-brand">DSH <small>性能分析</small></div><h2>工作区</h2><select id="workspace-filter" aria-label="工作区筛选"><option value="">全部工作区</option></select><h2>对话</h2><nav id="session-list" aria-label="工作区对话"></nav></aside><main>
+<body><aside id="session-sidebar" hidden><div class="workspace-brand">DSH <small>性能分析</small></div><h2>工作区</h2><select id="workspace-filter" aria-label="工作区筛选"><option value="">全部工作区</option></select><h2>对话</h2><input id="session-search" type="search" aria-label="搜索对话" placeholder="搜索标题、session 或路径"><nav id="session-list" aria-label="工作区对话"></nav></aside><main>
 <header><div><div class="eyebrow">DSH / PERFORMANCE</div><h1>每一轮时间，花在哪里？</h1><p>查看步骤与工具的重叠区间，比较不同轮次的耗时。</p></div><button id="demo" type="button">查看演示数据</button></header>
 <section id="live-panel" hidden><h2>指定对话 · 实时分析</h2><div class="toolbar"><label>对话 <select id="live-session" aria-label="实时分析对话"><option value="">选择对话</option></select></label><label><input id="follow-latest" type="checkbox" checked>跟随最新轮次</label><button id="live-pause" type="button">暂停刷新</button><a id="history-download" hidden>下载该对话历史 JSON</a></div><p id="session-context"></p><p id="live-status" aria-live="polite">正在连接 dsh…</p><p>运行中的耗时是截至当前采样时刻的值，持续增长；结束后显示完整报告。自动载入选中对话的历史事件；历史数据展示事件间隔，新轮次另有精确运行时计时。</p></section>
 <div class="toolbar"><label>导入报告 <input id="files" type="file" accept=".json,application/json" multiple></label><label>当前轮次 <select id="report-select" aria-label="当前轮次"></select></label></div>
@@ -196,6 +196,7 @@ let liveTimer;
 let sessionCatalog=[];
 let catalogSignature='';
 let selectedWorkspace='';
+let sessionSearch='';
 let liveStopped=false;
 if(liveConfig){
   document.documentElement.dataset.theme=liveConfig.theme||'system';
@@ -203,8 +204,9 @@ if(liveConfig){
   document.getElementById('follow-latest').addEventListener('change',event=>{followLatest=event.target.checked;});
   document.getElementById('session-sidebar').hidden=false;document.body.classList.add('workspace-layout');
   document.getElementById('workspace-filter').addEventListener('change',event=>{selectedWorkspace=event.target.value;catalogSignature='';renderSessionCatalog();});
+  document.getElementById('session-search').addEventListener('input',event=>{sessionSearch=event.target.value.trim().toLocaleLowerCase();renderSessionCatalog();});
   function renderSessionCatalog(){
-    const signature=JSON.stringify([liveSessionId,selectedWorkspace,sessionCatalog]);if(signature===catalogSignature)return;catalogSignature=signature;
+    const signature=JSON.stringify([liveSessionId,selectedWorkspace,sessionSearch,sessionCatalog]);if(signature===catalogSignature)return;catalogSignature=signature;
     const groups=new Map();for(const session of sessionCatalog){const workspace=session.workspace??'';if(!groups.has(workspace))groups.set(workspace,[]);groups.get(workspace).push(session);}
     const workspaceSelect=document.getElementById('workspace-filter');const all=element('option','全部工作区');all.value='';workspaceSelect.replaceChildren(all);
     for(const workspace of groups.keys()){if(!workspace)continue;const option=element('option',workspace.split('/').filter(Boolean).at(-1));option.value=workspace;option.title=workspace;workspaceSelect.append(option);}workspaceSelect.value=selectedWorkspace;
@@ -216,10 +218,11 @@ if(liveConfig){
       for(const session of sessions){
         const name=session.title||session.id;const state=session.running?'运行中':session.loaded?'已加载':'历史对话';
         const option=element('option',`${name} · ${state}`);option.value=session.id;option.title=session.id;group.append(option);
-        const button=element('button',name,'session-button'+(session.id===liveSessionId?' active':''));button.type='button';button.title=session.id;button.append(element('small',`${state}${session.origin==='subagent'?' · 子代理':''}`));button.addEventListener('click',()=>{elements['live-session'].value=session.id;elements['live-session'].dispatchEvent(new Event('change'));});details.append(button);
+        const button=element('button',name,'session-button'+(session.id===liveSessionId?' active':''));button.type='button';button.title=session.id;button.append(element('small',`${state}${session.origin==='subagent'?' · 子代理':''}`));button.addEventListener('click',()=>{elements['live-session'].value=session.id;elements['live-session'].dispatchEvent(new Event('change'));});if(!sessionSearch||[session.title,session.id,workspace].filter(Boolean).join(' ').toLocaleLowerCase().includes(sessionSearch))details.append(button);
       }
-      options.push(group);if(!selectedWorkspace||selectedWorkspace===workspace)list.append(details);
+      options.push(group);if((!selectedWorkspace||selectedWorkspace===workspace)&&details.querySelector('button'))list.append(details);
     }
+    if(!list.children.length)list.append(element('p','没有匹配的对话'));
     if(liveSessionId&&!sessionCatalog.some(session=>session.id===liveSessionId)){const option=element('option',`${liveSessionId} · 暂不可用`);option.value=liveSessionId;options.push(option);}
     elements['live-session'].replaceChildren(...options);elements['live-session'].value=liveSessionId;
     const selected=sessionCatalog.find(session=>session.id===liveSessionId);document.getElementById('session-context').textContent=selected?`${selected.title||selected.id} · ${selected.workspace||'未指定工作区'} · ${selected.id}`:'';
