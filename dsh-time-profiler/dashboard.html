@@ -22,7 +22,7 @@ body.workspace-layout main{margin-left:270px;max-width:1440px}#session-context{o
 </head>
 <body><aside id="session-sidebar" hidden><div class="workspace-brand">DSH <small>性能分析</small></div><h2>工作区</h2><select id="workspace-filter" aria-label="工作区筛选"><option value="">全部工作区</option></select><h2>对话</h2><nav id="session-list" aria-label="工作区对话"></nav></aside><main>
 <header><div><div class="eyebrow">DSH / PERFORMANCE</div><h1>每一轮时间，花在哪里？</h1><p>查看步骤与工具的重叠区间，比较不同轮次的耗时。</p></div><button id="demo" type="button">查看演示数据</button></header>
-<section id="live-panel" hidden><h2>指定对话 · 实时分析</h2><div class="toolbar"><label>对话 <select id="live-session" aria-label="实时分析对话"><option value="">选择对话</option></select></label><button id="live-pause" type="button">暂停刷新</button><a id="history-download" hidden>下载该对话历史 JSON</a></div><p id="session-context"></p><p id="live-status" aria-live="polite">正在连接 dsh…</p><p>运行中的耗时是截至当前采样时刻的值，持续增长；结束后显示完整报告。自动载入选中对话的历史事件；历史数据展示事件间隔，新轮次另有精确运行时计时。</p></section>
+<section id="live-panel" hidden><h2>指定对话 · 实时分析</h2><div class="toolbar"><label>对话 <select id="live-session" aria-label="实时分析对话"><option value="">选择对话</option></select></label><label><input id="follow-latest" type="checkbox" checked>跟随最新轮次</label><button id="live-pause" type="button">暂停刷新</button><a id="history-download" hidden>下载该对话历史 JSON</a></div><p id="session-context"></p><p id="live-status" aria-live="polite">正在连接 dsh…</p><p>运行中的耗时是截至当前采样时刻的值，持续增长；结束后显示完整报告。自动载入选中对话的历史事件；历史数据展示事件间隔，新轮次另有精确运行时计时。</p></section>
 <div class="toolbar"><label>导入报告 <input id="files" type="file" accept=".json,application/json" multiple></label><label>当前轮次 <select id="report-select" aria-label="当前轮次"></select></label></div>
 <div id="errors" class="error" role="alert"></div><div id="selection" aria-live="polite"></div>
 <div class="cards" id="metrics"></div>
@@ -41,6 +41,8 @@ body.workspace-layout main{margin-left:270px;max-width:1440px}#session-context{o
 'use strict';
 const elements = Object.fromEntries(['files','report-select','errors','selection','metrics','timeline','tools','steps','comparison','ranking','demo','baseline','delta','tool-deltas','span-detail','runtime-allocation','runtime-summary','runtime-timeline','execution-ranking','live-panel','live-session','live-status','live-pause'].map(identifier => [identifier,document.getElementById(identifier)]));
 let reports = [];
+let followLatest=true;
+function stopFollowing(){followLatest=false;const control=document.getElementById('follow-latest');if(control)control.checked=false;}
 let selectedIndex = 0;
 let baselineIndex = 0;
 const collapsedSteps=new Set();
@@ -170,10 +172,10 @@ function render(){
   if(!summaries.length)elements.tools.append(element('div','本轮没有已完成的工具调用','empty'));
   for(const summary of summaries){const row=element('div',undefined,'rank');const label=element('div',toolLabel(summary.name),'rank-name');label.append(element('div',`${summary.count} 次 · 失败 ${summary.errors} 次`));const track=element('div',undefined,'track');const bar=element('div',undefined,'bar tool');bar.style.left='0';bar.style.width=Math.max(0,summary[metric]/ceiling*100)+'%';track.append(bar);row.append(label,track,element('div',formatTime(summary[metric]),'lane-value'));elements.tools.append(row);}
   for(const step of report.steps){const row=element('tr');for(const value of [step.step,stepLabel(step,report),formatTime(step.durationMs),formatTime(step.stepToAssistantMs),step.attempts])row.append(element('td',String(value),'num'));elements.steps.append(row);}
-  reports.forEach((entry,index)=>{const row=element('tr',undefined,index===selectedIndex?'selected-row':'');const label=element('td');const button=element('button',`${entry.demo?'演示 · ':''}${entry.sessionId} / ${entry.turn}`,'comparison-button');button.type='button';button.addEventListener('click',()=>{selectedIndex=index;elements['report-select'].value=String(index);render();});label.append(button);row.append(label);for(const value of [formatTime(entry.durationMs),entry.steps.length,formatTime(entry.tools.reduce((sum,tool)=>sum+tool.durationMs,0)),entry.tools.filter(tool=>tool.isError).length,entry.endReason])row.append(element('td',String(value),'num'));elements.comparison.append(row);});
+  reports.forEach((entry,index)=>{const row=element('tr',undefined,index===selectedIndex?'selected-row':'');const label=element('td');const button=element('button',`${entry.demo?'演示 · ':''}${entry.sessionId} / ${entry.turn}`,'comparison-button');button.type='button';button.addEventListener('click',()=>{stopFollowing();selectedIndex=index;elements['report-select'].value=String(index);render();});label.append(button);row.append(label);for(const value of [formatTime(entry.durationMs),entry.steps.length,formatTime(entry.tools.reduce((sum,tool)=>sum+tool.durationMs,0)),entry.tools.filter(tool=>tool.isError).length,entry.endReason])row.append(element('td',String(value),'num'));elements.comparison.append(row);});
 }
 elements.files.addEventListener('change',async()=>{const incoming=[];const errors=[];for(const file of elements.files.files){try{if(file.size>10*1024*1024)throw new Error('文件超过 10 MB');incoming.push(validateReport(JSON.parse(await file.text())));}catch(error){errors.push(`${file.name}：${error.message}`);}}elements.errors.textContent=errors.join('\n');if(incoming.length)loadReports(incoming);elements.files.value='';});
-elements['report-select'].addEventListener('change',()=>{selectedIndex=Number(elements['report-select'].value);render();});elements.ranking.addEventListener('change',render);
+elements['report-select'].addEventListener('change',()=>{stopFollowing();selectedIndex=Number(elements['report-select'].value);render();});elements.ranking.addEventListener('change',render);
 elements.baseline.addEventListener('change',()=>{baselineIndex=Number(elements.baseline.value);render();});
 /** Synthetic timing for the explicitly labelled demo, not a reconstruction of real request timings. */
 function demoRuntime(report){
@@ -198,6 +200,7 @@ let liveStopped=false;
 if(liveConfig){
   document.documentElement.dataset.theme=liveConfig.theme||'system';
   elements['live-panel'].hidden=false;
+  document.getElementById('follow-latest').addEventListener('change',event=>{followLatest=event.target.checked;});
   document.getElementById('session-sidebar').hidden=false;document.body.classList.add('workspace-layout');
   document.getElementById('workspace-filter').addEventListener('change',event=>{selectedWorkspace=event.target.value;catalogSignature='';renderSessionCatalog();});
   function renderSessionCatalog(){
@@ -223,7 +226,7 @@ if(liveConfig){
   }
   elements['live-session'].addEventListener('change',()=>{
     liveSessionId=elements['live-session'].value;renderSessionCatalog();
-    reports=[];selectedIndex=0;baselineIndex=0;collapsedSteps.clear();refreshOptions();render();
+    followLatest=true;document.getElementById('follow-latest').checked=true;reports=[];selectedIndex=0;baselineIndex=0;collapsedSteps.clear();refreshOptions();render();
     const url=new URL(location.href);if(liveSessionId)url.searchParams.set('sessionId',liveSessionId);else url.searchParams.delete('sessionId');history.replaceState(null,'',url);
     elements['live-status'].textContent=liveSessionId?'正在切换对话…':'请选择需要分析的对话。';
   });
@@ -246,7 +249,12 @@ if(liveConfig){
       const snapshot=await requestLive('/api/live?sessionId='+encodeURIComponent(selected));
       if(livePaused||selected!==liveSessionId)return;
       const incoming=snapshot.reports.map(validateReport);
-      reports=incoming;selectedIndex=Math.max(0,reports.length-1);baselineIndex=Math.min(baselineIndex,Math.max(0,reports.length-1));
+      const current=reports[selectedIndex],baseline=reports[baselineIndex];
+      reports=incoming;
+      const retainedIndex=current?reports.findIndex(report=>report.turn===current.turn&&report.startedAt===current.startedAt):-1;
+      selectedIndex=followLatest?Math.max(0,reports.length-1):Math.max(0,retainedIndex);
+      const retainedBaseline=baseline?reports.findIndex(report=>report.turn===baseline.turn&&report.startedAt===baseline.startedAt):-1;
+      baselineIndex=Math.max(0,retainedBaseline);
       refreshOptions();render();
       elements['live-status'].textContent=`${selected} · ${reports.some(report=>report.live)?'实时分析中':'等待下一轮'} · 更新于 ${new Date(snapshot.sampledAt).toLocaleTimeString()}${reports.length?'':' · 还未捕获完整轮次起点'}`;
     }catch(error){if(!livePaused)elements['live-status'].textContent='连接失败，将自动重试：'+error.message;}

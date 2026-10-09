@@ -105,3 +105,5 @@ bundle 与 source patch 默认启用本地实时服务，地址为 `http://127.0
 实时面板按 DSH 原生 session/title 投影显示对话标题，按 header.cwd 分组工作区，标注子代理和运行状态。标题扫描缓存由 live.catalogRefreshMs 控制（默认 30 秒），每秒更新运行状态。live.theme 可选 system/light/dark，本机设为 dark 与 DSH 工作区一致。侧栏用于选择分析对象，选中对话的完整路径和 session id 显示在面板中。
 
 安装、session 选择与旧版本刷新问题见 [实时分析排障](docs/troubleshooting.md)。开发流程见仓库 [贡献指南](../CONTRIBUTING.md)。
+
+查看历史轮次时会自动取消“跟随最新轮次”，实时采样继续但不再切回最后一轮。重新勾选后，下次采样恢复跟随。切换 session 默认恢复跟随最新轮次。
