@@ -1,0 +1,11 @@
+# Run from the local harness without installing the package into a profile.
+- insert:
+    - id: time-profiler
+      name: './src/index.js'
+      config:
+        outputDirectory: './dsh-performance'
+        live:
+          enabled: true
+          port: 8767
+          pollIntervalMs: 1000
+          maxRetainedReports: 100

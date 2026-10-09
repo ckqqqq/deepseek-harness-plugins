@@ -1,0 +1,10 @@
+- insert:
+    - id: time-profiler
+      name: '@local/dsh-time-profiler'
+      config:
+        outputDirectory: './dsh-performance'
+        live:
+          enabled: true
+          port: 8767
+          pollIntervalMs: 1000
+          maxRetainedReports: 100
