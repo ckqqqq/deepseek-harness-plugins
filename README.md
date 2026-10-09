@@ -33,3 +33,7 @@ dsh plugin --profile web add "$PWD"
 测试数据、真实会话历史、截图、依赖目录与编译产物不上传。分析器报告中的历史事件间隔不能替代精确 LLM 请求时间，工具并行耗时不能直接相加作为任务总耗时。
 
 本仓库原创代码与说明采用 [MIT License](LICENSE)。第三方 submodule 仍以各自许可证为准，根目录许可证不替换上游声明。
+
+## 调研技能
+
+[刷小红书 · DSH 问题反馈](skills/dsh-feedback-watch/SKILL.md)通过用户现有登录会话低频阅读小红书，并支持按需扩展知乎。它收集可追溯的体验痛点与改进建议，按阅读预算执行，不并发批量爬取。安装到 Codex skills 后可用 `$dsh-feedback-watch` 调用；真实调研记录保持在私有本地目录。

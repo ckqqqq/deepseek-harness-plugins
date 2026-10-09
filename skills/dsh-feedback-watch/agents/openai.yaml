@@ -1,0 +1,4 @@
+interface:
+  display_name: "刷小红书 · DSH 问题反馈"
+  short_description: "低频阅读小红书与知乎，收集可追溯的 DSH 问题反馈和改进建议"
+  default_prompt: "使用 $dsh-feedback-watch，通过我的登录会话低频阅读小红书，收集 DSH 的具体问题和改进建议。"
