@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DSH · 时间性能分析</title>
+<style>
+:root{color-scheme:light dark;--bg:#f5f7fa;--panel:#fff;--text:#172435;--muted:#647386;--line:#dce3eb;--blue:#3868df;--tool:#188477;--fail:#c83c50;--track:#edf1f7}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 system-ui,sans-serif}main{max-width:1280px;margin:auto;padding:36px 28px}h1{font-size:30px;letter-spacing:-1px;margin:0}h2{font-size:18px;margin:0 0 14px}p{margin:8px 0;color:var(--muted)}header,.toolbar{display:flex;justify-content:space-between;gap:20px;align-items:center;flex-wrap:wrap}.eyebrow{color:var(--blue);letter-spacing:2px;font-size:12px}.toolbar{margin:24px 0}label{display:flex;gap:8px;align-items:center;flex-wrap:wrap}button,select,input{font:inherit;max-width:100%}button,select{padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text)}button{cursor:pointer}input[type=file]{width:280px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:20px 0}.card,section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}.card strong{display:block;font-size:27px;font-weight:600;font-variant-numeric:tabular-nums}.card span{color:var(--muted);font-size:13px}.grid{display:grid;grid-template-columns:1.2fr 1fr;gap:18px;margin-top:18px}.wide{grid-column:1/-1}section{min-width:0}label{min-width:0}select{min-width:0}#delta{overflow-wrap:anywhere}.notice{padding:12px 16px;border-left:3px solid var(--blue);background:var(--track);border-radius:6px;margin:16px 0}.error{color:var(--fail);white-space:pre-line}.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-bottom:14px}.dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}.timeline{min-width:0}.lane{display:grid;grid-template-columns:190px minmax(0,1fr) 100px;gap:12px;align-items:center;padding:7px 0}.lane-label{overflow-wrap:anywhere;font-size:13px}.track{height:24px;background:var(--track);border-radius:4px;position:relative;overflow:hidden}.bar{position:absolute;top:3px;height:18px;background:var(--blue);border-radius:3px;min-width:2px}.bar.tool{background:var(--tool)}.bar.failed{background:var(--fail)}.lane-value{text-align:right;font-size:13px;font-variant-numeric:tabular-nums}.axis{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin:0 112px 0 202px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--muted);font-weight:500}td.num{text-align:right;font-variant-numeric:tabular-nums}.rank{display:grid;grid-template-columns:minmax(100px,1fr) 2fr 100px;gap:12px;align-items:center;margin:14px 0}.rank .track{height:12px}.rank .bar{top:0;height:12px}.rank-name{overflow-wrap:anywhere}.selected-row{background:var(--track)}.empty{padding:32px 12px;text-align:center;color:var(--muted)}footer{margin:24px 0;color:var(--muted);font-size:13px}#selection{overflow-wrap:anywhere}.comparison-button{border:0;background:none;padding:0;color:var(--blue);text-align:left}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:3px}@media(prefers-color-scheme:dark){:root{--bg:#101722;--panel:#172131;--text:#e1e8f2;--muted:#9daec3;--line:#2b3a4f;--blue:#81a6ff;--tool:#59c7b2;--fail:#ff8696;--track:#233047}}@media(max-width:760px){main{padding:20px 14px}.cards{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:minmax(0,1fr)}.lane{grid-template-columns:110px minmax(0,1fr) 74px;gap:8px}.axis{margin-left:118px;margin-right:82px}.rank{grid-template-columns:100px minmax(0,1fr) 74px}.card{padding:14px}.card strong{font-size:23px}section{padding:14px}h1{font-size:25px}}
+@media(max-width:400px){.axis span:nth-child(2){display:none}.lane{grid-template-columns:90px minmax(0,1fr) 64px}.axis{margin-left:98px;margin-right:72px}}
+.allocation{display:flex;height:28px;border-radius:5px;overflow:hidden;background:var(--track);margin:14px 0}.allocation div{height:100%}.allocation-labels{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px}.runtime-summary{overflow-wrap:anywhere}
+/* Match DSH's neutral workspace surfaces and blue action accent. */
+:root{--bg:#fff;--panel:#fafafa;--text:#222225;--muted:#77777e;--line:#e6e6e9;--blue:#4176e6;--track:#eeeef1}
+@media(prefers-color-scheme:dark){:root{--bg:#151517;--panel:#1d1d20;--text:#ececef;--muted:#9999a1;--line:#303035;--blue:#7aaaff;--track:#29292e}}
+.card,section{border-radius:10px}h1{font-size:26px}.eyebrow{letter-spacing:1px}a{color:var(--blue)}
+#session-sidebar{position:fixed;inset:0 auto 0 0;width:270px;overflow:auto;background:var(--panel);border-right:1px solid var(--line);padding:20px 14px;box-sizing:border-box}
+#session-sidebar h2{margin:18px 0 8px;font-size:13px;color:var(--muted)}#workspace-filter{width:100%;font-size:13px}#session-sidebar summary{cursor:pointer;overflow-wrap:anywhere;padding:10px 4px;font-size:13px}
+.session-button{display:block;width:100%;border:0;background:none;text-align:left;padding:9px 12px;font-size:13px;overflow-wrap:anywhere;margin:2px 0}.session-button.active{background:var(--track);color:var(--blue)}.session-button small{display:block;color:var(--muted);font-size:11px}
+body.workspace-layout main{margin-left:270px;max-width:1440px}#session-context{overflow-wrap:anywhere;font-size:13px}.workspace-brand{font-size:20px;font-weight:600}
+@media(max-width:900px){#session-sidebar{position:static;width:auto;border-right:0;border-bottom:1px solid var(--line)}#session-list{max-height:240px;overflow:auto}body.workspace-layout main{margin:auto}}
+:root[data-theme=dark]{color-scheme:dark;--bg:#151517;--panel:#1d1d20;--text:#ececef;--muted:#9999a1;--line:#303035;--blue:#7aaaff;--track:#29292e}
+:root[data-theme=light]{color-scheme:light;--bg:#fff;--panel:#fafafa;--text:#222225;--muted:#77777e;--line:#e6e6e9;--blue:#4176e6;--track:#eeeef1}
+</style>
+</head>
+<body><aside id="session-sidebar" hidden><div class="workspace-brand">DSH <small>性能分析</small></div><h2>工作区</h2><select id="workspace-filter" aria-label="工作区筛选"><option value="">全部工作区</option></select><h2>对话</h2><nav id="session-list" aria-label="工作区对话"></nav></aside><main>
+<header><div><div class="eyebrow">DSH / PERFORMANCE</div><h1>每一轮时间，花在哪里？</h1><p>查看步骤与工具的重叠区间，比较不同轮次的耗时。</p></div><button id="demo" type="button">查看演示数据</button></header>
+<section id="live-panel" hidden><h2>指定对话 · 实时分析</h2><div class="toolbar"><label>对话 <select id="live-session" aria-label="实时分析对话"><option value="">选择对话</option></select></label><button id="live-pause" type="button">暂停刷新</button><a id="history-download" hidden>下载该对话历史 JSON</a></div><p id="session-context"></p><p id="live-status" aria-live="polite">正在连接 dsh…</p><p>运行中的耗时是截至当前采样时刻的值，持续增长；结束后显示完整报告。自动载入选中对话的历史事件；历史数据展示事件间隔，新轮次另有精确运行时计时。</p></section>
+<div class="toolbar"><label>导入报告 <input id="files" type="file" accept=".json,application/json" multiple></label><label>当前轮次 <select id="report-select" aria-label="当前轮次"></select></label></div>
+<div id="errors" class="error" role="alert"></div><div id="selection" aria-live="polite"></div>
+<div class="cards" id="metrics"></div>
+<div class="notice">工具累计耗时包含并发与嵌套重叠，不能与整轮耗时相加减。步骤到响应耗时包含准备、流式生成与重试，不代表首 token 延迟。</div>
+<div class="grid">
+<section class="wide"><h2>LLM 与工具：实际经过时间构成</h2><div id="runtime-allocation"></div><div id="runtime-summary"></div><h2>模型尝试与工具执行区间</h2><div id="runtime-timeline"></div><h2>实际工具执行排名（包括嵌套调用）</h2><div id="execution-ranking"></div><p>模型计时是流式尝试到提交完成；工具计时是调度和前置策略通过后的执行中间件区间。其他时间尚未细分，不等同于 CPU 开销。子代理 LLM 在子会话中记录，父代理等待子代理仍属于工具区间。</p></section>
+<section class="wide"><h2>整轮时间线</h2><div class="legend"><span><i class="dot" style="background:var(--blue)"></i>步骤</span><span><i class="dot" style="background:var(--tool)"></i>工具调用</span><span><i class="dot" style="background:var(--fail)"></i>工具失败</span></div><div id="timeline" class="timeline"></div><p id="span-detail" aria-live="polite">点击工具名称查看调用明细。</p></section>
+<section><h2>工具耗时排名</h2><label>排序指标 <select id="ranking"><option value="totalMs">累计耗时</option><option value="meanMs">平均耗时</option><option value="maxMs">最大耗时</option></select></label><div id="tools"></div></section>
+<section><h2>步骤明细</h2><div class="table-wrap"><table><thead><tr><th>步骤</th><th>步骤动作（按工具推导）</th><th>总耗时</th><th>开始到响应</th><th>尝试次数</th></tr></thead><tbody id="steps"></tbody></table></div></section>
+<section class="wide"><h2>与基准轮次比较</h2><label>基准轮次 <select id="baseline" aria-label="基准轮次"></select></label><p id="delta" aria-live="polite"></p><div class="table-wrap"><table><thead><tr><th>工具</th><th>基准平均</th><th>当前平均</th><th>平均变化</th><th>调用次数（基准 → 当前）</th></tr></thead><tbody id="tool-deltas"></tbody></table></div></section>
+<section class="wide"><h2>轮次比较</h2><p>导入多份 JSON 可横向比较。不同任务的耗时不能直接作为优化效果结论。</p><div class="table-wrap"><table><thead><tr><th>会话 / 轮次</th><th>整轮耗时</th><th>步骤数</th><th>工具累计</th><th>工具失败</th><th>结束原因</th></tr></thead><tbody id="comparison"></tbody></table></div></section>
+</div><footer>数据保留在当前页面内存中，不上传。悬停时间条可查看区间；具体数值同时显示在明细中。计时使用 DSH 事件系统时钟，时钟调整可能影响结果。</footer>
+<script id="live-config" type="application/json">__DSH_LIVE__</script>
+<script id="initial-reports" type="application/json">__DSH_REPORTS__</script>
+<script>
+'use strict';
+const elements = Object.fromEntries(['files','report-select','errors','selection','metrics','timeline','tools','steps','comparison','ranking','demo','baseline','delta','tool-deltas','span-detail','runtime-allocation','runtime-summary','runtime-timeline','execution-ranking','live-panel','live-session','live-status','live-pause'].map(identifier => [identifier,document.getElementById(identifier)]));
+let reports = [];
+let selectedIndex = 0;
+let baselineIndex = 0;
+const collapsedSteps=new Set();
+function showTool(tool,origin){elements['span-detail'].textContent=`${toolLabel(tool.name)} · 步骤 ${tool.step} · 开始于 ${formatTime(tool.startedAt-origin)} · 耗时 ${formatTime(tool.durationMs)} · ${tool.isError?'失败':'成功'}。此区间包含审批、排队和结果处理。`;}
+function element(tag, text, className) { const node=document.createElement(tag); if(text!==undefined)node.textContent=text; if(className)node.className=className; return node; }
+// DSH step/start contains a number, not a task name; derive its label from recorded tool names.
+const toolDescriptions={bash:'执行命令',shell:'执行命令',read:'读取文件',edit:'编辑文件',write:'写入文件',grep:'搜索代码',glob:'查找文件',web_search:'搜索网页',web_fetch:'读取网页',subagent:'委派子任务',wait_agent:'等待子代理',list_agents:'查看子代理',job_output:'读取后台任务输出',job_kill:'停止后台任务',present:'展示文件',fs_search:'搜索文件'};
+function toolLabel(name){return toolDescriptions[name]?`${toolDescriptions[name]} · ${name}`:name;}
+function stepLabel(step,report){
+  const names=[...new Set(report.tools.filter(tool=>tool.step===step.step).map(tool=>tool.name))];
+  for(const span of report.runtimeTiming?.spans??[])if(span.kind==='tool'&&span.step===step.step&&!names.includes(span.name))names.push(span.name);
+  return names.length?names.map(toolLabel).join(' / '):step.attempts?'模型生成响应':'无工具调用';
+}
+function formatTime(milliseconds) { return Number.isFinite(milliseconds) ? (Math.abs(milliseconds)>=1000 ? (milliseconds/1000).toFixed(2)+' s' : milliseconds.toFixed(0)+' ms') : '未结束'; }
+function finite(value) { return typeof value==='number' && Number.isFinite(value); }
+// File imports are an external data source: reject invalid durations before calculating chart geometry.
+function validateReport(report) {
+  if(!report || report.schemaVersion!==1 || typeof report.sessionId!=='string' || !Number.isInteger(report.turn) || !finite(report.startedAt) || !finite(report.endedAt) || !finite(report.durationMs) || typeof report.endReason!=='string' || !Array.isArray(report.steps) || !Array.isArray(report.tools)) throw new Error('不是有效的 DSH v1 时间报告');
+  if(report.steps.length>10000 || report.tools.length>10000)throw new Error('单份报告最多支持 10000 个步骤或工具调用');
+  for(const step of report.steps)if(!step || !Number.isInteger(step.step) || !finite(step.startedAt) || !Number.isInteger(step.attempts) || step.attempts<0 || (step.durationMs!==undefined&&!finite(step.durationMs)) || (step.stepToAssistantMs!==undefined&&!finite(step.stepToAssistantMs)))throw new Error('步骤字段无效');
+  for(const tool of report.tools)if(!tool || typeof tool.name!=='string' || !Number.isInteger(tool.step) || !finite(tool.startedAt) || !finite(tool.durationMs) || typeof tool.isError!=='boolean')throw new Error('工具字段无效');
+  if(report.runtimeTiming!==undefined){
+    const timing=report.runtimeTiming;
+    if(!timing || timing.clock!=='monotonic' || !Array.isArray(timing.spans) || !Array.isArray(timing.toolsByName) || ['durationMs','llmOnlyMs','toolOnlyMs','overlapMs','otherMs','llmCumulativeMs','llmAttemptCount','failedAttemptCount'].some(key=>!finite(timing[key])||timing[key]<0))throw new Error('运行时计时字段无效');
+    if(timing.spans.length>20000)throw new Error('运行时区间超过 20000 条');
+    for(const span of timing.spans)if(!span || !['llm','tool'].includes(span.kind) || !finite(span.startMs) || !finite(span.durationMs) || span.startMs<0 || span.durationMs<0 || typeof span.outcome!=='string' || (span.kind==='tool' && typeof span.name!=='string') || (span.firstOutputMs!==undefined && (!finite(span.firstOutputMs)||span.firstOutputMs<0)))throw new Error('运行时区间无效');
+    for(const tool of timing.toolsByName)if(!tool || typeof tool.name!=='string' || ['count','totalMs','maxMs','meanMs','errors','incomplete'].some(key=>!finite(tool[key])||tool[key]<0))throw new Error('运行时工具汇总无效');
+    const allocated=timing.llmOnlyMs+timing.toolOnlyMs+timing.overlapMs+timing.otherMs;
+    if(Math.abs(allocated-timing.durationMs)>0.001)throw new Error('时间构成总量不一致');
+  }
+  return report;
+}
+function toolSummaries(report) {
+  const summaries=new Map();
+  for(const tool of report.tools){const summary=summaries.get(tool.name)??{name:tool.name,count:0,totalMs:0,maxMs:-Infinity,errors:0};summary.count++;summary.totalMs+=tool.durationMs;summary.maxMs=Math.max(summary.maxMs,tool.durationMs);summary.errors+=Number(tool.isError);summaries.set(tool.name,summary);}
+  return [...summaries.values()].map(summary=>({...summary,meanMs:summary.totalMs/summary.count}));
+}
+/** Reimports replace the same measured turn rather than duplicating comparison rows. */
+function loadReports(incoming) {
+  let firstIndex;
+  for(const report of incoming){
+    let index=reports.findIndex(existing=>existing.sessionId===report.sessionId && existing.turn===report.turn && existing.startedAt===report.startedAt && Boolean(existing.demo)===Boolean(report.demo));
+    if(index<0){index=reports.length;reports.push(report);}else reports[index]=report;
+    firstIndex ??= index;
+  }
+  selectedIndex=firstIndex ?? selectedIndex;
+  refreshOptions();render();
+}
+function refreshOptions(){
+  for(const identifier of ['report-select','baseline'])elements[identifier].replaceChildren(...reports.map((report,index)=>{const option=element('option',`${report.demo?'演示 · ':''}${report.sessionId} / turn ${report.turn} · ${formatTime(report.durationMs)}`);option.value=String(index);return option;}));
+  elements['report-select'].value=String(selectedIndex);elements.baseline.value=String(baselineIndex);
+}
+function formatDelta(current,baseline){
+  const difference=current-baseline;
+  const direction=difference>0?'增加':difference<0?'减少':'不变';
+  const percentage=baseline>0 ? `（${Math.abs(difference/baseline*100).toFixed(1)}%）` : '（基准为零，不计算百分比）';
+  return direction==='不变'?'不变':`${direction} ${formatTime(Math.abs(difference))}${percentage}`;
+}
+function renderDeltas(report){
+  const baseline=reports[baselineIndex];
+  elements['tool-deltas'].replaceChildren();
+  if(!baseline){elements.delta.textContent='导入报告后可选择基准轮次。';return;}
+  if(Boolean(baseline.demo)!==Boolean(report.demo)){elements.delta.textContent='演示报告与实际报告不能作为同一组比较。';return;}
+  const hasBadClock=entry=>entry.clockAnomaly || entry.durationMs<0 || entry.tools.some(tool=>tool.durationMs<0);
+  if(hasBadClock(baseline)||hasBadClock(report)){elements.delta.textContent='存在时钟异常，暂停差异计算。';return;}
+  elements.delta.textContent=baselineIndex===selectedIndex?'当前轮次就是基准。选择另一轮查看差异。':`整轮耗时${formatDelta(report.durationMs,baseline.durationMs)}。这是观测差异；比较优化效果应使用相同任务和运行配置。`;
+  const previous=new Map(toolSummaries(baseline).map(summary=>[summary.name,summary]));
+  const current=new Map(toolSummaries(report).map(summary=>[summary.name,summary]));
+  const names=[...new Set([...previous.keys(),...current.keys()])];
+  for(const name of names){
+    const before=previous.get(name),after=current.get(name);
+    const change=before&&after?formatDelta(after.meanMs,before.meanMs):after?'新增调用':'本轮未调用';
+    const row=element('tr');
+    for(const value of [name,before?formatTime(before.meanMs):'—',after?formatTime(after.meanMs):'—',change,`${before?.count??0} → ${after?.count??0}`])row.append(element('td',value));
+    elements['tool-deltas'].append(row);
+  }
+}
+function lane(label,start,duration,kind,origin,total){
+  const row=element('div',undefined,'lane');row.append(element('div',label,'lane-label'));const track=element('div',undefined,'track');
+  if(finite(duration)&&duration>=0){const bar=element('div',undefined,'bar '+kind);const offset=Math.max(0,Math.min(100,(start-origin)/total*100));bar.style.left=offset+'%';bar.style.width=Math.max(0,Math.min(100-offset,duration/total*100))+'%';bar.title=`${label}：开始于 ${formatTime(start-origin)}，耗时 ${formatTime(duration)}`;track.append(bar);}
+  row.append(track,element('div',formatTime(duration),'lane-value'));return row;
+}
+/** Keep unavailable live measurements distinct from legacy step-to-response estimates. */
+function renderRuntime(report){
+  for(const identifier of ['runtime-allocation','runtime-summary','runtime-timeline','execution-ranking'])elements[identifier].replaceChildren();
+  const timing=report.runtimeTiming;
+  if(!timing){elements['runtime-summary'].textContent='这份报告没有运行时计时。请重新运行任务采集；旧报告中的步骤耗时不能替代 LLM 请求耗时。';return;}
+  const categories=[['仅 LLM',timing.llmOnlyMs,'var(--blue)'],['仅工具',timing.toolOnlyMs,'var(--tool)'],['LLM 与工具重叠',timing.overlapMs,'var(--fail)'],['其他 / 未细分',timing.otherMs,'var(--muted)']];
+  const allocation=element('div',undefined,'allocation');allocation.setAttribute('role','img');allocation.setAttribute('aria-label',categories.map(([label,value])=>`${label} ${formatTime(value)}`).join('，'));
+  const labels=element('div',undefined,'allocation-labels');
+  for(const [label,value,color] of categories){const segment=element('div');segment.style.width=(timing.durationMs?value/timing.durationMs*100:0)+'%';segment.style.background=color;allocation.append(segment);labels.append(element('span',`${label} ${formatTime(value)} · ${timing.durationMs?(value/timing.durationMs*100).toFixed(1):'0'}%`));}
+  elements['runtime-allocation'].append(allocation,labels);
+  elements['runtime-summary'].textContent=`单调时钟整轮 ${formatTime(timing.durationMs)} · 模型尝试 ${timing.llmAttemptCount} 次 · 未提交正常消息 ${timing.failedAttemptCount} 次 · 模型累计 ${formatTime(timing.llmCumulativeMs)}（可能重叠）`;
+  const total=Math.max(1,timing.durationMs);
+  for(const span of [...timing.spans].sort((left,right)=>left.startMs-right.startMs)){
+    const label=span.kind==='llm'?`LLM${span.outcome==='running'?' · 正在生成':''} · 步骤 ${span.step}${span.firstOutputMs!==undefined?' · 首次输出 '+formatTime(span.firstOutputMs):''}`:`${span.nested?'↳ ':''}${toolLabel(span.name)} · ${span.outcome==='running'?'正在执行':span.outcome}`;
+    elements['runtime-timeline'].append(lane(label,span.startMs,span.durationMs,span.kind==='llm'?'':span.outcome==='error'?'failed':'tool',0,total));
+  }
+  const tools=[...timing.toolsByName].sort((left,right)=>right.totalMs-left.totalMs);
+  const maximum=Math.max(1,...tools.map(tool=>tool.totalMs));
+  for(const tool of tools){const row=element('div',undefined,'rank');const label=element('div',`${tool.name} · ${tool.count} 次 · 失败 ${tool.errors} 次`,'rank-name');const track=element('div',undefined,'track');const bar=element('div',undefined,'bar tool');bar.style.left='0';bar.style.width=(tool.totalMs/maximum*100)+'%';track.append(bar);row.append(label,track,element('div',formatTime(tool.totalMs),'lane-value'));elements['execution-ranking'].append(row);}
+  if(!tools.length)elements['execution-ranking'].append(element('div','未观测到工具执行','empty'));
+}
+function render(){
+  for(const key of ['metrics','timeline','tools','steps','comparison'])elements[key].replaceChildren();
+  const report=reports[selectedIndex];
+  if(!report){for(const identifier of ['runtime-allocation','runtime-summary','runtime-timeline','execution-ranking'])elements[identifier].replaceChildren();elements.selection.textContent='尚无报告。导入 JSON，或查看明确标记的演示数据。';elements.timeline.append(element('div','等待报告','empty'));elements.delta.textContent='导入报告后可选择基准轮次。';return;}
+  renderRuntime(report);
+  elements['span-detail'].textContent='点击工具名称查看调用明细。';
+  renderDeltas(report);
+  const summaries=toolSummaries(report);const errorCount=report.tools.filter(tool=>tool.isError).length;
+  const invalidClock=report.clockAnomaly || report.durationMs<0 || report.tools.some(tool=>tool.durationMs<0) || report.steps.some(step=>step.durationMs<0 || step.stepToAssistantMs<0);
+  elements.selection.textContent=`${report.live?'实时采样 · ':''}${report.demo?'演示数据 · ':''}${report.sessionId} · 第 ${report.turn} 轮 · ${new Date(report.startedAt).toLocaleString()} · ${report.endReason}${invalidClock?' · 检测到时钟异常，时间条仅供参考':''}`;
+  for(const [label,value,detail] of [['整轮经过时间',formatTime(report.durationMs),'turn/start → turn/end'],['步骤数量',report.steps.length,'一个步骤可能包含多次尝试'],['工具调用',report.tools.length,`未完成 ${report.unfinishedToolCount??0} 次`],['工具失败',errorCount,'已收到结果的调用']]){const card=element('div',undefined,'card');card.append(element('span',label),element('strong',String(value)),element('span',detail));elements.metrics.append(card);}
+  const total=Math.max(1,report.durationMs);const axis=element('div',undefined,'axis');axis.append(element('span','0'),element('span',formatTime(total/2)),element('span',formatTime(total)));elements.timeline.append(axis);
+  elements.timeline.append(lane('整轮',report.startedAt,report.durationMs,'',report.startedAt,total));
+  for(const step of report.steps){
+    const key=JSON.stringify([report.sessionId,report.turn,report.startedAt,step.step]);
+    const tools=report.tools.filter(tool=>tool.step===step.step);
+    const stepLane=lane(`步骤 ${step.step} · ${stepLabel(step,report)}`,step.startedAt,step.durationMs,'',report.startedAt,total);
+    if(tools.length){const toggle=element('button',`${collapsedSteps.has(key)?'▸':'▾'} 步骤 ${step.step} · ${stepLabel(step,report)} · ${tools.length} 个工具`,'comparison-button');toggle.type='button';toggle.setAttribute('aria-expanded',String(!collapsedSteps.has(key)));toggle.addEventListener('click',()=>{if(collapsedSteps.has(key))collapsedSteps.delete(key);else collapsedSteps.add(key);render();});stepLane.firstChild.replaceChildren(toggle);}
+    elements.timeline.append(stepLane);
+    if(!collapsedSteps.has(key))for(const tool of tools){const toolLane=lane(`↳ ${toolLabel(tool.name)}${tool.isError?' · 失败':''}`,tool.startedAt,tool.durationMs,tool.isError?'failed':'tool',report.startedAt,total);const button=element('button',toolLane.firstChild.textContent,'comparison-button');button.type='button';button.addEventListener('click',()=>showTool(tool,report.startedAt));toolLane.firstChild.replaceChildren(button);elements.timeline.append(toolLane);}
+  }
+  for(const tool of report.tools.filter(tool=>!report.steps.some(step=>step.step===tool.step)))elements.timeline.append(lane(toolLabel(tool.name),tool.startedAt,tool.durationMs,tool.isError?'failed':'tool',report.startedAt,total));
+  const metric=elements.ranking.value;summaries.sort((left,right)=>right[metric]-left[metric]);const ceiling=Math.max(1,...summaries.map(summary=>summary[metric]));
+  if(!summaries.length)elements.tools.append(element('div','本轮没有已完成的工具调用','empty'));
+  for(const summary of summaries){const row=element('div',undefined,'rank');const label=element('div',toolLabel(summary.name),'rank-name');label.append(element('div',`${summary.count} 次 · 失败 ${summary.errors} 次`));const track=element('div',undefined,'track');const bar=element('div',undefined,'bar tool');bar.style.left='0';bar.style.width=Math.max(0,summary[metric]/ceiling*100)+'%';track.append(bar);row.append(label,track,element('div',formatTime(summary[metric]),'lane-value'));elements.tools.append(row);}
+  for(const step of report.steps){const row=element('tr');for(const value of [step.step,stepLabel(step,report),formatTime(step.durationMs),formatTime(step.stepToAssistantMs),step.attempts])row.append(element('td',String(value),'num'));elements.steps.append(row);}
+  reports.forEach((entry,index)=>{const row=element('tr',undefined,index===selectedIndex?'selected-row':'');const label=element('td');const button=element('button',`${entry.demo?'演示 · ':''}${entry.sessionId} / ${entry.turn}`,'comparison-button');button.type='button';button.addEventListener('click',()=>{selectedIndex=index;elements['report-select'].value=String(index);render();});label.append(button);row.append(label);for(const value of [formatTime(entry.durationMs),entry.steps.length,formatTime(entry.tools.reduce((sum,tool)=>sum+tool.durationMs,0)),entry.tools.filter(tool=>tool.isError).length,entry.endReason])row.append(element('td',String(value),'num'));elements.comparison.append(row);});
+}
+elements.files.addEventListener('change',async()=>{const incoming=[];const errors=[];for(const file of elements.files.files){try{if(file.size>10*1024*1024)throw new Error('文件超过 10 MB');incoming.push(validateReport(JSON.parse(await file.text())));}catch(error){errors.push(`${file.name}：${error.message}`);}}elements.errors.textContent=errors.join('\n');if(incoming.length)loadReports(incoming);elements.files.value='';});
+elements['report-select'].addEventListener('change',()=>{selectedIndex=Number(elements['report-select'].value);render();});elements.ranking.addEventListener('change',render);
+elements.baseline.addEventListener('change',()=>{baselineIndex=Number(elements.baseline.value);render();});
+/** Synthetic timing for the explicitly labelled demo, not a reconstruction of real request timings. */
+function demoRuntime(report){
+  const tools=report.tools.map(tool=>({kind:'tool',name:tool.name,startMs:tool.startedAt-report.startedAt,durationMs:tool.durationMs,outcome:tool.isError?'error':'success',nested:false}));
+  const modelSpans=[{kind:'llm',step:1,startMs:0,durationMs:3000,firstOutputMs:600,outcome:'assistant/message'}, {kind:'llm',step:2,startMs:report.steps[1].startedAt-report.startedAt,durationMs:report.steps[1].durationMs,firstOutputMs:400,outcome:'assistant/message'}];
+  const toolOnlyMs=Math.max(...tools.map(tool=>tool.startMs+tool.durationMs))-3000;
+  const llmOnlyMs=modelSpans.reduce((total,span)=>total+span.durationMs,0);
+  return {clock:'monotonic',durationMs:report.durationMs,llmOnlyMs,toolOnlyMs,overlapMs:0,otherMs:report.durationMs-llmOnlyMs-toolOnlyMs,spans:[...modelSpans,...tools],llmCumulativeMs:llmOnlyMs,llmAttemptCount:2,failedAttemptCount:0,toolsByName:toolSummaries(report).map(tool=>({...tool,incomplete:0}))};
+}
+elements.demo.addEventListener('click',()=>{if(reports.some(report=>report.demo)){selectedIndex=reports.findIndex(report=>report.demo);refreshOptions();render();return;}const start=Date.UTC(2026,9,9,4);loadReports([0,1].map(index=>({schemaVersion:1,demo:true,sessionId:'demo-session',turn:index+1,startedAt:start+index*20000,endedAt:start+index*20000+(index?8500:12000),durationMs:index?8500:12000,endReason:'completed',unfinishedToolCount:0,steps:[{step:1,startedAt:start+index*20000,durationMs:index?6500:9500,stepToAssistantMs:3000,attempts:1},{step:2,startedAt:start+index*20000+(index?6500:9500),durationMs:index?2000:2500,stepToAssistantMs:index?2000:2500,attempts:1}],tools:[{name:'shell',step:1,startedAt:start+index*20000+3000,durationMs:index?3200:6000,isError:false},{name:'fs_search',step:1,startedAt:start+index*20000+3100,durationMs:1800,isError:false},{name:'web_fetch',step:1,startedAt:start+index*20000+3300,durationMs:2200,isError:true}]})).map(report=>({...report,runtimeTiming:demoRuntime(report)})));});
+try{const initial=JSON.parse(document.getElementById('initial-reports').textContent);if(Array.isArray(initial)&&initial.length)loadReports(initial.map(validateReport));else render();}catch(error){elements.errors.textContent='内置报告读取失败：'+error.message;render();}
+
+/** Same-origin live polling: one in-flight request chain, stale session results are discarded. */
+const liveConfig=JSON.parse(document.getElementById('live-config').textContent);
+let liveSessionId=new URLSearchParams(location.search).get('sessionId')??'';
+let livePaused=false;
+let liveTimer;
+let sessionCatalog=[];
+let catalogSignature='';
+let selectedWorkspace='';
+let liveStopped=false;
+if(liveConfig){
+  document.documentElement.dataset.theme=liveConfig.theme||'system';
+  elements['live-panel'].hidden=false;
+  document.getElementById('session-sidebar').hidden=false;document.body.classList.add('workspace-layout');
+  document.getElementById('workspace-filter').addEventListener('change',event=>{selectedWorkspace=event.target.value;catalogSignature='';renderSessionCatalog();});
+  function renderSessionCatalog(){
+    const signature=JSON.stringify([liveSessionId,selectedWorkspace,sessionCatalog]);if(signature===catalogSignature)return;catalogSignature=signature;
+    const groups=new Map();for(const session of sessionCatalog){const workspace=session.workspace??'';if(!groups.has(workspace))groups.set(workspace,[]);groups.get(workspace).push(session);}
+    const workspaceSelect=document.getElementById('workspace-filter');const all=element('option','全部工作区');all.value='';workspaceSelect.replaceChildren(all);
+    for(const workspace of groups.keys()){if(!workspace)continue;const option=element('option',workspace.split('/').filter(Boolean).at(-1));option.value=workspace;option.title=workspace;workspaceSelect.append(option);}workspaceSelect.value=selectedWorkspace;
+    const list=document.getElementById('session-list');list.replaceChildren();const options=[element('option','选择对话')];options[0].value='';
+    for(const [workspace,sessions] of groups){
+      const group=element('optgroup');group.label=workspace?workspace.split('/').filter(Boolean).at(-1):'未指定工作区';
+      const details=element('details');details.open=!selectedWorkspace||workspace===selectedWorkspace;
+      const summary=element('summary',`${group.label} · ${sessions.length}`);summary.title=workspace;details.append(summary);
+      for(const session of sessions){
+        const name=session.title||session.id;const state=session.running?'运行中':session.loaded?'已加载':'历史对话';
+        const option=element('option',`${name} · ${state}`);option.value=session.id;option.title=session.id;group.append(option);
+        const button=element('button',name,'session-button'+(session.id===liveSessionId?' active':''));button.type='button';button.title=session.id;button.append(element('small',`${state}${session.origin==='subagent'?' · 子代理':''}`));button.addEventListener('click',()=>{elements['live-session'].value=session.id;elements['live-session'].dispatchEvent(new Event('change'));});details.append(button);
+      }
+      options.push(group);if(!selectedWorkspace||selectedWorkspace===workspace)list.append(details);
+    }
+    if(liveSessionId&&!sessionCatalog.some(session=>session.id===liveSessionId)){const option=element('option',`${liveSessionId} · 暂不可用`);option.value=liveSessionId;options.push(option);}
+    elements['live-session'].replaceChildren(...options);elements['live-session'].value=liveSessionId;
+    const selected=sessionCatalog.find(session=>session.id===liveSessionId);document.getElementById('session-context').textContent=selected?`${selected.title||selected.id} · ${selected.workspace||'未指定工作区'} · ${selected.id}`:'';
+  }
+  elements['live-session'].addEventListener('change',()=>{
+    liveSessionId=elements['live-session'].value;renderSessionCatalog();
+    reports=[];selectedIndex=0;baselineIndex=0;collapsedSteps.clear();refreshOptions();render();
+    const url=new URL(location.href);if(liveSessionId)url.searchParams.set('sessionId',liveSessionId);else url.searchParams.delete('sessionId');history.replaceState(null,'',url);
+    elements['live-status'].textContent=liveSessionId?'正在切换对话…':'请选择需要分析的对话。';
+  });
+  elements['live-pause'].addEventListener('click',()=>{
+    livePaused=!livePaused;elements['live-pause'].textContent=livePaused?'继续刷新':'暂停刷新';
+    elements['live-status'].textContent=livePaused?'已暂停，图表保留在最后采样时刻。':'正在恢复刷新…';
+  });
+  async function requestLive(path){
+    const controller=new AbortController();const deadline=setTimeout(()=>controller.abort(),5000);
+    try{const response=await fetch(path,{signal:controller.signal,cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status}`);return await response.json();}finally{clearTimeout(deadline);}
+  }
+  async function pollLive(){
+    try{
+      if(livePaused||liveStopped)return;
+      const catalog=await requestLive('/api/sessions');
+      sessionCatalog=catalog.sessions;renderSessionCatalog();
+      const download=document.getElementById('history-download');download.hidden=!liveSessionId;download.href='/api/history?sessionId='+encodeURIComponent(liveSessionId);
+      const selected=liveSessionId;
+      if(!selected){elements['live-status'].textContent=catalog.sessions.length?'请选择需要分析的对话。':'尚无已加载对话；在 dsh 中打开或开始一个对话。';return;}
+      const snapshot=await requestLive('/api/live?sessionId='+encodeURIComponent(selected));
+      if(livePaused||selected!==liveSessionId)return;
+      const incoming=snapshot.reports.map(validateReport);
+      reports=incoming;selectedIndex=Math.max(0,reports.length-1);baselineIndex=Math.min(baselineIndex,Math.max(0,reports.length-1));
+      refreshOptions();render();
+      elements['live-status'].textContent=`${selected} · ${reports.some(report=>report.live)?'实时分析中':'等待下一轮'} · 更新于 ${new Date(snapshot.sampledAt).toLocaleTimeString()}${reports.length?'':' · 还未捕获完整轮次起点'}`;
+    }catch(error){if(!livePaused)elements['live-status'].textContent='连接失败，将自动重试：'+error.message;}
+    finally{if(!liveStopped)liveTimer=setTimeout(pollLive,liveConfig.pollIntervalMs);}
+  }
+  void pollLive();
+  window.addEventListener('pagehide',()=>{liveStopped=true;clearTimeout(liveTimer);});
+  window.addEventListener('pageshow',event=>{if(event.persisted){liveStopped=false;void pollLive();}});
+}
+
+</script></main></body></html>
