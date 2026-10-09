@@ -195,16 +195,18 @@ let livePaused=false;
 let liveTimer;
 let sessionCatalog=[];
 let catalogSignature='';
-let selectedWorkspace='';
-let sessionSearch='';
+let selectedWorkspace=new URLSearchParams(location.search).get('workspace')??'';
+let sessionSearch=(new URLSearchParams(location.search).get('search')??'').toLocaleLowerCase();
+function saveViewUrl(){const url=new URL(location.href);for(const [key,value] of [['sessionId',liveSessionId],['workspace',selectedWorkspace],['search',sessionSearch]]){if(value)url.searchParams.set(key,value);else url.searchParams.delete(key);}history.replaceState(null,'',url);}
 let liveStopped=false;
 if(liveConfig){
   document.documentElement.dataset.theme=liveConfig.theme||'system';
   elements['live-panel'].hidden=false;
   document.getElementById('follow-latest').addEventListener('change',event=>{followLatest=event.target.checked;});
   document.getElementById('session-sidebar').hidden=false;document.body.classList.add('workspace-layout');
-  document.getElementById('workspace-filter').addEventListener('change',event=>{selectedWorkspace=event.target.value;catalogSignature='';renderSessionCatalog();});
-  document.getElementById('session-search').addEventListener('input',event=>{sessionSearch=event.target.value.trim().toLocaleLowerCase();renderSessionCatalog();});
+  document.getElementById('workspace-filter').addEventListener('change',event=>{selectedWorkspace=event.target.value;saveViewUrl();catalogSignature='';renderSessionCatalog();});
+  document.getElementById('session-search').value=sessionSearch;
+  document.getElementById('session-search').addEventListener('input',event=>{sessionSearch=event.target.value.trim().toLocaleLowerCase();saveViewUrl();renderSessionCatalog();});
   function renderSessionCatalog(){
     const signature=JSON.stringify([liveSessionId,selectedWorkspace,sessionSearch,sessionCatalog]);if(signature===catalogSignature)return;catalogSignature=signature;
     const groups=new Map();for(const session of sessionCatalog){const workspace=session.workspace??'';if(!groups.has(workspace))groups.set(workspace,[]);groups.get(workspace).push(session);}
@@ -230,7 +232,7 @@ if(liveConfig){
   elements['live-session'].addEventListener('change',()=>{
     liveSessionId=elements['live-session'].value;renderSessionCatalog();
     followLatest=true;document.getElementById('follow-latest').checked=true;reports=[];selectedIndex=0;baselineIndex=0;collapsedSteps.clear();refreshOptions();render();
-    const url=new URL(location.href);if(liveSessionId)url.searchParams.set('sessionId',liveSessionId);else url.searchParams.delete('sessionId');history.replaceState(null,'',url);
+    saveViewUrl();
     elements['live-status'].textContent=liveSessionId?'正在切换对话…':'请选择需要分析的对话。';
   });
   elements['live-pause'].addEventListener('click',()=>{
