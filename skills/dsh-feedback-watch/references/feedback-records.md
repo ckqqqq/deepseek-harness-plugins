@@ -18,7 +18,7 @@
 
 ## activity.jsonl
 
-每行记录一个实际动作：at、platform、action（open_site/search/open_detail/scroll_comments）、url。不要预填未执行动作。20 秒间隔按最近受限动作时间计算；小时预算按最近 60 分钟记录计算。新运行发生登录或限流阻断时，报告中说明阻断原因与未完成范围。
+每行记录一个实际动作：at、platform、action（open_site/search/open_detail/scroll_results/scroll_comments）、url。不要预填未执行动作。20 秒间隔按最近受限动作时间计算；小时预算按最近 60 分钟记录计算。新运行发生登录或限流阻断时，报告中说明阻断原因与未完成范围。
 
 ## 与性能分析器衔接
 
