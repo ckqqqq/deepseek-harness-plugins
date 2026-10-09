@@ -103,3 +103,5 @@ bundle 与 source patch 默认启用本地实时服务，地址为 `http://127.0
 时间线与排名同时展示中文工具说明和原始名称，例如“执行命令 · bash”。DSH 的 step/start 没有任务名称，步骤动作由该步骤中的工具名称推导；没有工具且已有模型响应时显示“模型生成响应”。不会为步骤编造任务标题，也不读取工具参数作为名称。
 
 实时面板按 DSH 原生 session/title 投影显示对话标题，按 header.cwd 分组工作区，标注子代理和运行状态。标题扫描缓存由 live.catalogRefreshMs 控制（默认 30 秒），每秒更新运行状态。live.theme 可选 system/light/dark，本机设为 dark 与 DSH 工作区一致。侧栏用于选择分析对象，选中对话的完整路径和 session id 显示在面板中。
+
+安装、session 选择与旧版本刷新问题见 [实时分析排障](docs/troubleshooting.md)。开发流程见仓库 [贡献指南](../CONTRIBUTING.md)。
