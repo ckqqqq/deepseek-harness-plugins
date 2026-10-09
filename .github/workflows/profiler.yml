@@ -1,0 +1,27 @@
+name: Profiler checks
+on:
+  push:
+    paths: ['dsh-time-profiler/**', '.github/workflows/profiler.yml']
+  pull_request:
+    paths: ['dsh-time-profiler/**', '.github/workflows/profiler.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  profiler:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dsh-time-profiler
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: dsh-time-profiler/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build:viewer
+      - name: Check generated viewer matches its template
+        run: git diff --exit-code -- dashboard.html
